@@ -1,38 +1,35 @@
 <?php
 
 // Mailer settings.
-$from = "no-reply@email.com";
-$to = "foo@email.com";
-$cc = "bar@email.com";
-$title = "Feedback from website";
+$GLOBALS["from"] = "no-reply@gmail.com";
+$GLOBALS["to"] = "foo@gmail.com";
+$GLOBALS["cc"] = "bar@gmail.com";
+$GLOBALS["subject"] = "Feedback from website";
 
-function composeMessage($name, $email, $message) {
+function composeMessage($name, $email, $phone, $message) {
     $body = <<<MSG
-MENSAJE ENVIADO DESDE EL SITIO WEB
-
-Nombre: $name
-
-Email: $email
+Feedback from website
+- Name: $name
+- Email: $email
+- Phone: $phone
 
 $message
 MSG;
 
-    return $body;
+    // We use wordwrap in case any of our lines is longer than 70 characters.
+    return wordwrap($body, 70);
 }
-
 
 // -----------------------------------------------------------
 // You probably don't need to edit anything beyond this point.
 // -----------------------------------------------------------
 
-// just making sure that information is there
-function isValid($val) {
+function isDefined($val) {
     $value = trim($val);
 
-    return !($value === "" || $value === null);
+    return !empty($value);
 }
 
-// Make sure the email is valid.
 function isValidEmail($email) {
     return preg_match(
         "/^[a-z0-9A-Z_\+-]+(\.[a-z0-9A-Z_\+-]+)*@[a-z0-9A-Z-]+(\.[a-z0-9A-Z-]+)*\.([a-z]{2,4})$/",
@@ -41,75 +38,61 @@ function isValidEmail($email) {
 }
 
 // Define the success response.
-function success($num, $msg) {
+function success($message) {
     return array(
-        "status" => "success",
-        "confirmationNumber" => $num,
-        "message" => $msg
+        "success" => true,
+        "message" => $message
     );
 }
 
 // Define the error response.
-function errors($err) {
+function errors($errors) {
     return array(
-        "status" => "errors",
-        "message" => $err
+        "success" => false,
+        "errors" => $errors
     );
 }
 
 function process() {
-    $success = false;
     $errors = array();
 
-    $headers = "From: " . $from . " <" . $from . ">\r\n";
-    $headers .= "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
-    $headers .= "Reply-To: " . $to . "\r\n";
-    $headers .= "Cc: " . $cc . "\r\n";
+    $headers = "From: " . $GLOBALS["from"] . " <" . $GLOBALS["from"] . ">\r\n";
+    $headers .= "Reply-To: " . $GLOBALS["to"] . "\r\n";
+    $headers .= "Cc: " . $GLOBALS["cc"] . "\r\n";
     $headers .= "X-Mailer: PHP/" . phpversion();
 
-    if(!empty($_POST["submit"])) {
+    if (!isDefined($_POST["name"])) {
+        array_push(
+            $errors,
+            Array("field" => "name", "error" => "Name cannot be left blank")
+        );
+    }
 
-        // you make conditionals to skip not required fields
-        //this skips suffix and title
-        foreach($_POST as $key => $val):
-            if(!isValid($val) and $key !== "suffix" and $key !== "title" ) {
-                array_push($errors, $key);
-            }
-        }
+    if(!isValidEmail($_POST["email"])) {
+        array_push(
+            $errors,
+            Array("field" => "email", "error" => "Invalid email address")
+        );
+    }
 
+    if (!isDefined($_POST["message"])) {
+        array_push(
+            $errors,
+            Array("field" => "message", "error" => "Message cannot be left blank")
+        );
+    }
 
-        if(!isValidEmail($_POST["email"])) {
-            array_push($errors, "email");
-        }
+    if(empty($errors)) {
+        $name = $_POST["name"];
+        $email = $_POST["email"];
+        $phone = isDefined($_POST["phone"]) ? $_POST["phone"] : "N/A";
+        $message = $_POST["message"];
+        $body = composeMessage($name, $email, $phone, $message);
 
-        //Results
-        if(empty($errors)) {
-            $success = true;
+        // mail($to, $subject, $body, $headers);
 
-            $head = "<h2>Email Header</h2>";
-
-            // Pull the variables into this body variable
-            $body = "<p>Body of infomation</p>";
-
-            $message = $head . $body; // composeMessage() @TODO
-
-            // In case any of our lines are larger than 70 characters, we should use wordwrap()
-            $message = wordwrap($message, 70);
-
-            if (mail($to, $title, $message, $headers)) {
-                return success($confirmation_no, $message);
-            } else {
-                // couldn't send email
-            }
-
-        } else {
-            return errors($errors, "Please fix errors then resubmit");
-        }
-
+        return success("Message successfully sent");
     } else {
-        array_push($errors, "You have submitted this form in a Bad Method");
-
         return errors($errors);
     }
 }
